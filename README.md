@@ -1,6 +1,8 @@
-# 🕶️ CameraAccess — Meta Ray-Ban Live Camera Streaming
+# 🕶️ MetaDLStream — Live Object Detection with Meta Ray-Ban Glasses
 
-A working Android sample app that streams live video from **Meta Ray-Ban Gen 1** smart glasses to your Android device using the **Meta Wearables Device Access Toolkit (DAT)**.
+An Android app that combines **live camera streaming** from Meta Ray-Ban Gen 1 smart glasses with **real-time object detection** using TensorFlow Lite (EfficientDet-Lite0).
+
+> Built on top of the official [Meta Wearables DAT Android sample](https://github.com/facebook/meta-wearables-dat-android).
 
 ---
 
@@ -8,8 +10,21 @@ A working Android sample app that streams live video from **Meta Ray-Ban Gen 1**
 
 - Connects to Meta Ray-Ban glasses via Bluetooth
 - Streams live camera feed from the glasses to your Android screen
-- Captures photos directly from the glasses
-- Shares captured photos
+- Runs **EfficientDet-Lite0** on every 10th frame to detect objects
+- Displays detection results (label + confidence) overlaid on the live stream
+- Captures and shares photos from the glasses
+
+---
+
+## 🧠 How it works
+
+```
+Ray-Ban glasses → BLE → Meta DAT SDK → VideoFrame (I420) → YUV→Bitmap → TFLite → Overlay
+```
+
+- Every 10th frame is analyzed by EfficientDet-Lite0 (configurable via `DETECTION_INTERVAL_FRAMES`)
+- Results are displayed as a transparent overlay at the top of the stream
+- Score threshold: 30% confidence minimum
 
 ---
 
@@ -22,7 +37,7 @@ A working Android sample app that streams live video from **Meta Ray-Ban Gen 1**
 | Android SDK | 31+ (Android 12.0+) |
 | Target device | Android 10+ with Bluetooth |
 | Glasses | Meta Ray-Ban Gen 1 or Gen 2 |
-| Meta AI app | Installed and glasses paired |
+| Meta View app | Installed and glasses paired |
 
 ---
 
@@ -31,37 +46,33 @@ A working Android sample app that streams live video from **Meta Ray-Ban Gen 1**
 ### Step 1 — Meta Developer Center
 
 1. Go to [wearables.developer.meta.com](https://wearables.developer.meta.com)
-2. Create an account or log in with your Meta account
-3. Create a new **Organization**
-4. Create a new **Project** and give it a name (e.g. `CameraAccessSample`)
-5. Go to **App configuration** → **Android** → **+ Add app details**:
+2. Log in with your Meta account and create an **Organization**
+3. Create a new **Project** (e.g. `MetaDLStream`)
+4. Go to **App configuration** → **Android** → **+ Add app details**:
    - **Package name**: `com.meta.wearable.dat.externalsampleapps.cameraaccess`
-   - **App signature**: see Step 3 below to get this value
-6. Go to **Permissions** → **+ Request permission** → add **Camera** permission with a rationale
-7. Go to **Distribute** → **+ New version** → **Create version** (1.0.0)
-8. Go to **Release channels** → the Alpha channel is created automatically
-9. Click **Edit** on the Alpha channel → **+ Invite users** → add your Meta account email
-10. Accept the invite at [wearables.meta.com/invites](https://wearables.meta.com/invites)
+   - **App signature**: see Step 3 below
+5. Go to **Permissions** → **+ Request permission** → add **Camera** with a rationale
+6. Go to **Distribute** → **+ New version** → **Create version** (1.0.0)
+7. Go to **Release channels** → **Edit** Alpha → **+ Invite users** → add your Meta email
+8. Accept the invite at [wearables.meta.com/invites](https://wearables.meta.com/invites)
 
 ---
 
 ### Step 2 — GitHub Personal Access Token
 
-The Meta DAT SDK is distributed via GitHub Packages. You need a token to download it.
+The Meta DAT SDK is distributed via GitHub Packages.
 
 1. Go to [github.com](https://github.com) → **Settings** → **Developer settings**
 2. Click **Personal access tokens** → **Tokens (classic)**
 3. Click **Generate new token (classic)**
-4. Give it a name (e.g. `MetaDAT`)
-5. Set expiration to 90 days
-6. Check only ✅ **read:packages**
-7. Click **Generate token** and **copy it immediately**
+4. Name it `MetaDAT`, expiration 90 days, check only ✅ **read:packages**
+5. Click **Generate token** and **copy it immediately**
 
 ---
 
 ### Step 3 — Get the App Signature
 
-The sample uses a custom keystore (`sample.keystore`). Run this in PowerShell:
+This project uses a custom keystore (`sample.keystore`). Run this in PowerShell:
 
 ```powershell
 # Add keytool to PATH
@@ -71,43 +82,40 @@ $env:PATH += ";C:\Program Files\Android\Android Studio\jbr\bin"
 keytool -list -v -keystore app\sample.keystore -alias sample -storepass sample -keypass sample
 ```
 
-Copy the **SHA256** line (format: `XX:XX:XX:...`), then convert it to base64url:
+Convert the SHA256 to base64url format:
 
 ```powershell
-# Replace the hex bytes from your SHA256 output
-[Convert]::ToBase64String([byte[]](0x56,0x7C,0x39,...)).Replace('+','-').Replace('/','_').TrimEnd('=')
+[Convert]::ToBase64String([byte[]](0x56,0x7C,0x39,0xB4,...)).Replace('+','-').Replace('/','_').TrimEnd('=')
 ```
 
-> For this repo, the pre-computed base64url signature is:
+> For this repo, the pre-computed signature is:
 > ```
 > Vnw5tMbqPlKg1kL4_po7CC05UjBt82T8JqLZYk5V924
 > ```
 
-Paste this value in the **App signature** field in the Meta Developer Center.
+Paste this in **App signature** in the Meta Developer Center.
 
 ---
 
 ### Step 4 — Clone and Configure
 
 ```bash
-git clone https://github.com/emmasali/CameraAccessSample.git
-cd CameraAccessSample
+git clone https://github.com/emmasali/MetaDLStream.git
+cd MetaDLStream
 ```
 
-Create a `local.properties` file in the project root:
+Create `local.properties` in the project root:
 
 ```
 sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 github_token=YOUR_GITHUB_TOKEN_HERE
 ```
 
-Replace `YourName` with your Windows username and `YOUR_GITHUB_TOKEN_HERE` with the token from Step 2.
-
 ---
 
 ### Step 5 — Add Meta Credentials
 
-Open `app/src/main/AndroidManifest.xml` and update with your credentials from the Meta Developer Center:
+Open `app/src/main/AndroidManifest.xml` and add your credentials from the Meta Developer Center under **App configuration → Android integration**:
 
 ```xml
 <meta-data
@@ -118,11 +126,19 @@ Open `app/src/main/AndroidManifest.xml` and update with your credentials from th
     android:value="YOUR_CLIENT_TOKEN" />
 ```
 
-Find these values in the Meta Developer Center under **App configuration** → **Android integration**.
+---
+
+### Step 6 — Add the TFLite Model
+
+Download **EfficientDet-Lite0** from [TensorFlow Hub](https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1) and place it in:
+
+```
+app/src/main/assets/efficientdet_lite0.tflite
+```
 
 ---
 
-### Step 6 — Build and Run
+### Step 7 — Build and Run
 
 1. Open the project in **Android Studio**
 2. Click **File → Sync Project with Gradle Files**
@@ -131,51 +147,54 @@ Find these values in the Meta Developer Center under **App configuration** → *
 
 ---
 
-### Step 7 — Pair the Glasses
+### Step 8 — Pair the Glasses
 
-1. Make sure **Meta View** app is installed on your Android device
-2. Pair your Ray-Ban glasses via Meta View
-3. Accept the camera permission request when prompted by the app
-4. The live stream should appear on screen
+1. Make sure **Meta View** is installed and glasses are paired
+2. Launch the app and accept camera permission
+3. The live stream starts automatically with detection overlay
 
 ---
 
 ## 🔧 Troubleshooting
 
 ### "Application package signature is not matching"
-- The app signature in Meta Developer Center doesn't match your keystore
-- Re-extract the SHA256 from `app/sample.keystore` (see Step 3)
-- Update the signature in Meta Developer Center
+- Re-extract SHA256 from `app/sample.keystore` (see Step 3)
+- Update in Meta Developer Center
 - **Clear Meta View cache**: Settings → Apps → Meta View → Clear Cache → Force Stop
-- Create a new version in Distribute and assign it to Alpha channel
-- Re-run the app
+- Create a new version in Distribute, assign to Alpha, re-run
 
 ### "Token not configured" / Registration fails
-- Check that `APPLICATION_ID` and `CLIENT_TOKEN` are correctly set in `AndroidManifest.xml`
-- Make sure your email is listed as an Active User in the Alpha release channel
+- Verify `APPLICATION_ID` and `CLIENT_TOKEN` in `AndroidManifest.xml`
+- Make sure your email is **Active** in the Alpha release channel
 
 ### Gradle sync fails with 401 Unauthorized
-- Your GitHub token may be incorrect or expired
-- Check `local.properties` — make sure there's only ONE `github_token=` line
+- Check `local.properties` — only ONE `github_token=` line
 - Generate a new token with `read:packages` scope
+
+### No objects detected
+- Lower `setScoreThreshold` in `StreamViewModel.kt` (e.g. from `0.3f` to `0.1f`)
+- Lower `DETECTION_INTERVAL_FRAMES` to analyze more frames
 
 ---
 
 ## 📁 Project Structure
 
 ```
-CameraAccess/
+MetaDLStream/
 ├── app/
 │   ├── src/main/
-│   │   ├── java/com/meta/wearable/dat/externalsampleapps/cameraaccess/
-│   │   │   ├── MainActivity.kt
-│   │   │   ├── HomeScreen.kt
-│   │   │   ├── StreamScreen.kt
-│   │   │   └── ...
+│   │   ├── assets/
+│   │   │   └── efficientdet_lite0.tflite   ← TFLite model
+│   │   ├── java/.../cameraaccess/
+│   │   │   ├── stream/
+│   │   │   │   ├── StreamViewModel.kt      ← Stream + TFLite detection
+│   │   │   │   └── YuvToBitmapConverter.kt ← YUV→Bitmap conversion
+│   │   │   └── ui/
+│   │   │       └── StreamScreen.kt         ← UI with detection overlay
 │   │   └── AndroidManifest.xml
-│   ├── sample.keystore          ← Custom keystore for this sample
+│   ├── sample.keystore
 │   └── build.gradle.kts
-├── local.properties             ← NOT committed (add github_token here)
+├── local.properties                        ← NOT committed
 └── README.md
 ```
 
@@ -192,6 +211,16 @@ CameraAccess/
 
 ---
 
+## 🗺️ Future Work
+
+- [ ] Bounding boxes overlay on detected objects
+- [ ] Text-to-speech readout of detected objects
+- [ ] Custom TFLite model fine-tuned for specific use cases
+- [ ] GPU delegate for faster inference
+- [ ] Lower detection interval for real-time performance
+
+---
+
 ## 👩‍💻 Author
 
 **Imane** — Built with ❤️ in Montréal
@@ -200,5 +229,5 @@ CameraAccess/
 
 ## 📄 License
 
-This project is based on the Meta Wearables DAT Android sample.
+Based on the [Meta Wearables DAT Android sample](https://github.com/facebook/meta-wearables-dat-android).
 See [LICENSE](https://github.com/facebook/meta-wearables-dat-android/blob/main/LICENSE) for details.
